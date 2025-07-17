@@ -1,0 +1,181 @@
+@import "tailwindcss";
+
+/* Custom styles for leaflet markers */
+.custom-div-icon {
+  background: transparent;
+  border: none;
+}
+
+.leaflet-div-icon {
+  background: transparent;
+  border: none;
+}
+
+/* Style for rotatable image overlays */
+.leaflet-image-layer {
+  transition: transform 0.3s ease;
+  /* Make sure images are visible */
+  display: block !important;
+  visibility: visible !important;
+  max-width: none !important; /* Prevent image size restrictions */
+  outline: 2px solid rgba(255, 107, 0, 0.6) !important; /* Add outline to all image overlays */
+  outline-offset: 2px;
+}
+
+/* Move zoom controls to right side by default */
+.leaflet-control-zoom {
+  margin-right: 10px !important;
+}
+
+/* Improve map controls visibility */
+.leaflet-control {
+  box-shadow: 0 1px 5px rgba(0,0,0,0.2) !important;
+}
+
+/* Ensure popup buttons don't have default browser styling */
+.leaflet-popup-content button {
+  appearance: none;
+}
+
+/* Add transition for sidebar */
+.sidebar-transition {
+  transition: all 0.3s ease-in-out;
+}
+
+/* Ensure the sidebar toggle is visible */
+.leaflet-container {
+  position: relative !important;
+  z-index: 10 !important;
+}
+
+/* Ensure proper z-index for controls */
+.leaflet-top, .leaflet-bottom {
+  z-index: 20 !important;
+}
+
+/* Draggable overlay styles */
+.draggable-overlay {
+  cursor: move !important;
+  box-shadow: 0 0 8px rgba(0,0,0,0.3);
+  transition: box-shadow 0.3s ease;
+}
+
+.dragging-overlay * {
+  cursor: grabbing !important;
+}
+
+.draggable-overlay:hover {
+  opacity: 1 !important;
+  box-shadow: 0 0 12px rgba(0,0,0,0.6) !important;
+}
+
+/* Placement mode styles */
+.overlay-placement-mode {
+  cursor: move !important;
+}
+
+.placement-mode-overlay {
+  animation: pulse-border 2s infinite;
+}
+
+.placement-mode {
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.5) !important;
+  border: 2px dashed #3b82f6 !important;
+  filter: brightness(1.2);
+}
+
+/* Flash effect for drawing attention to placement */
+.flash-overlay {
+  animation: flash-animation 0.5s ease-in-out;
+}
+
+@keyframes flash-animation {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+/* Fix for leaflet image overlay z-index issues */
+.leaflet-pane.leaflet-overlay-pane {
+  z-index: 450 !important;
+}
+
+.leaflet-pane.leaflet-marker-pane {
+  z-index: 460 !important;
+}
+
+.leaflet-pane.leaflet-popup-pane {
+  z-index: 470 !important;
+}
+
+@keyframes pulse-border {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+/* Make sure the overlays are visible */
+.visible-overlay {
+  border: 3px solid rgba(255, 107, 0, 0.7) !important; /* Bright orange border */
+  box-shadow: 0 0 15px rgba(255, 165, 0, 0.5) !important; /* Glow effect */
+}
+
+/* Placement mode styles with more distinct visuals */
+.placement-mode {
+  border: 3px dashed rgb(255, 107, 0) !important;
+  box-shadow: 0 0 20px rgba(255, 107, 0, 0.7) !important;
+  animation: pulse-placement 2s infinite !important;
+}
+
+@keyframes pulse-placement {
+  0% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0.7); }
+  70% { box-shadow: 0 0 0 15px rgba(255, 107, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0); }
+}
+
+/* PDF Overlay Styles */
+.leaflet-pdf-layer {
+  position: absolute;
+  border: 2px solid rgba(255, 165, 0, 0.8);
+  box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  pointer-events: auto;
+  z-index: 1000;
+  background-color: white;
+  overflow: hidden;
+}
+
+.leaflet-pdf-layer .pdf-container {
+  width: 100%;
+  height: 100%;
+}
+
+.pdf-container .react-pdf__Document {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.pdf-container .react-pdf__Page {
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+}
+
+.pdf-container .react-pdf__Page__canvas {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
+}
+
+.pdf-container.placement-mode {
+  border: 3px dashed rgb(255, 107, 0);
+  box-shadow: 0 0 20px rgba(255, 107, 0, 0.7);
+  animation: pulse-placement 2s infinite;
+}
