@@ -2,77 +2,96 @@ import cv2
 import mediapipe as mp
 import pyautogui
 import math
+import time
 
 # Initialize MediaPipe
-mp_drawing = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.7)
+mp_draw = mp.solutions.drawing_utils
 
 # Set screen size
-screen_width, screen_height = pyautogui.size()
+screen_w, screen_h = pyautogui.size()
 
-# Start webcam
+# Initialize smoothing variables
+prev_x, prev_y = 0, 0
+smoothening = 0.2  # lower = smoother
+
+# Delay handling
+left_clicked = False
+right_clicked = False
+
 cap = cv2.VideoCapture(0)
 
-# Use MediaPipe Hands
-with mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7) as hands:
-    while cap.isOpened():
-        success, image = cap.read()
-        if not success:
-            continue
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
 
-        # Flip image for mirror effect and convert color
-        image = cv2.flip(image, 1)
-        img_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    frame = cv2.flip(frame, 1)
+    h, w, c = frame.shape
 
-        # Process with MediaPipe
-        results = hands.process(img_rgb)
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    results = hands.process(rgb)
 
-        # Get hand landmarks
-        if results.multi_hand_landmarks:
-            for hand_landmarks in results.multi_hand_landmarks:
+    if results.multi_hand_landmarks:
+        hand_landmarks = results.multi_hand_landmarks[0]
+        lm = hand_landmarks.landmark
 
-                # Get landmark positions
-                landmarks = hand_landmarks.landmark
+        # Index finger tip
+        index = lm[8]
+        x = int(index.x * w)
+        y = int(index.y * h)
 
-                # Get index finger tip (8)
-                index_tip = landmarks[8]
-                index_x = int(index_tip.x * image.shape[1])
-                index_y = int(index_tip.y * image.shape[0])
+        screen_x = int(index.x * screen_w)
+        screen_y = int(index.y * screen_h)
 
-                # Map to screen coordinates
-                screen_x = int(index_tip.x * screen_width)
-                screen_y = int(index_tip.y * screen_height)
-                pyautogui.moveTo(screen_x, screen_y)
+        # Smooth movement using interpolation
+        curr_x = prev_x + (screen_x - prev_x) * smoothening
+        curr_y = prev_y + (screen_y - prev_y) * smoothening
+        pyautogui.moveTo(curr_x, curr_y)
+        prev_x, prev_y = curr_x, curr_y
 
-                # Draw index tip
-                cv2.circle(image, (index_x, index_y), 10, (255, 0, 0), -1)
+        # Draw index finger
+        cv2.circle(frame, (x, y), 10, (255, 0, 0), -1)
 
-                # Distance between index (8) and thumb (4)
-                thumb_tip = landmarks[4]
-                thumb_x = int(thumb_tip.x * image.shape[1])
-                thumb_y = int(thumb_tip.y * image.shape[0])
-                thumb_dist = math.hypot(index_x - thumb_x, index_y - thumb_y)
+        # Thumb tip
+        thumb = lm[4]
+        thumb_x = int(thumb.x * w)
+        thumb_y = int(thumb.y * h)
 
-                # Distance between index (8) and middle (12)
-                middle_tip = landmarks[12]
-                middle_x = int(middle_tip.x * image.shape[1])
-                middle_y = int(middle_tip.y * image.shape[0])
-                middle_dist = math.hypot(index_x - middle_x, index_y - middle_y)
+        # Middle finger tip
+        middle = lm[12]
+        middle_x = int(middle.x * w)
+        middle_y = int(middle.y * h)
 
-                # Left click if thumb and index are close
-                if thumb_dist < 40:
-                    pyautogui.click(button='left')
-                    cv2.putText(image, 'Left Click', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+        # Calculate distances
+        dist_thumb = math.hypot(thumb_x - x, thumb_y - y)
+        dist_middle = math.hypot(middle_x - x, middle_y - y)
 
-                # Right click if index and middle are close
-                elif middle_dist < 40:
-                    pyautogui.click(button='right')
-                    cv2.putText(image, 'Right Click', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
+        # Left Click: Index & Thumb
+        if dist_thumb < 40:
+            if not left_clicked:
+                pyautogui.click(button='left')
+                left_clicked = True
+                cv2.putText(frame, 'Left Click', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+        else:
+            left_clicked = False
 
-        # Show webcam output
-        cv2.imshow('Virtual Mouse', image)
-        if cv2.waitKey(5) & 0xFF == 27:
-            break
+        # Right Click: Index & Middle
+        if dist_middle < 40:
+            if not right_clicked:
+                pyautogui.click(button='right')
+                right_clicked = True
+                cv2.putText(frame, 'Right Click', (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
+        else:
+            right_clicked = False
+
+        # Draw connections
+        mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+
+    cv2.imshow("Virtual Mouse", frame)
+    if cv2.waitKey(1) == 27:  # ESC to exit
+        break
 
 cap.release()
 cv2.destroyAllWindows()

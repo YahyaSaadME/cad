@@ -11,6 +11,13 @@ import ReactDOM from 'react-dom/client';
 // Configure pdf.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
+// Configure default options for better quality
+const PDF_RENDER_OPTIONS = {
+  cMapUrl: 'https://unpkg.com/pdfjs-dist@5.3.93/cmaps/',
+  cMapPacked: true,
+  standardFontDataUrl: 'https://unpkg.com/pdfjs-dist@5.3.93/standard_fonts/'
+};
+
 interface MapProps {
   selectedPDF: PDFFile | null;
   isPlacingPDF: boolean;
@@ -37,11 +44,16 @@ const Map: React.FC<MapProps> = ({ selectedPDF, isPlacingPDF, isMapLocked, onPla
   const [pdfDimensions, setPdfDimensions] = useState({ width: 300, height: 400 });
   const [pdfRotation, setPdfRotation] = useState(0);
   const [pdfOpacity, setPdfOpacity] = useState(0.8);
-  const [pdfZoom, setPdfZoom] = useState(1.0); // New zoom state, default 100%
+  const [pdfZoom, setPdfZoom] = useState(1.0);
   
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
   const unmountingRef = useRef(false);
+  
+  // Add high quality rendering controls
+  const [renderQuality, setRenderQuality] = useState(2.0); // Default to 2x quality
+  const renderQualityRef = useRef(renderQuality);
+  renderQualityRef.current = renderQuality;
   
   // Store the latest values in refs to avoid dependency issues
   const pdfPositionRef = useRef(pdfPosition);
@@ -248,7 +260,7 @@ const Map: React.FC<MapProps> = ({ selectedPDF, isPlacingPDF, isMapLocked, onPla
     opacityControls.appendChild(opacitySlider);
     opacityControls.appendChild(opacityValue);
     
-    // Zoom controls (new)
+    // Zoom controls with quality adjustment
     const zoomControls = document.createElement('div');
     zoomControls.className = 'zoom-controls';
     zoomControls.style.display = 'flex';
@@ -277,6 +289,42 @@ const Map: React.FC<MapProps> = ({ selectedPDF, isPlacingPDF, isMapLocked, onPla
     zoomControls.appendChild(zoomLabel);
     zoomControls.appendChild(zoomSlider);
     zoomControls.appendChild(zoomValue);
+
+    // New quality controls
+    const qualityControls = document.createElement('div');
+    qualityControls.className = 'quality-controls';
+    qualityControls.style.display = 'flex';
+    qualityControls.style.alignItems = 'center';
+    qualityControls.style.marginLeft = '10px';
+    
+    const qualityLabel = document.createElement('span');
+    qualityLabel.textContent = 'Quality:';
+    qualityLabel.style.fontSize = '12px';
+    qualityLabel.style.marginRight = '5px';
+    
+    const qualitySelect = document.createElement('select');
+    qualitySelect.style.fontSize = '12px';
+    qualitySelect.style.padding = '2px';
+    
+    const options = [
+      { value: '1', label: 'Standard' },
+      { value: '2', label: 'High' },
+      { value: '3', label: 'Very High' },
+      { value: '4', label: 'Ultra' }
+    ];
+    
+    options.forEach(option => {
+      const opt = document.createElement('option');
+      opt.value = option.value;
+      opt.textContent = option.label;
+      if (parseFloat(option.value) === renderQualityRef.current) {
+        opt.selected = true;
+      }
+      qualitySelect.appendChild(opt);
+    });
+    
+    qualityControls.appendChild(qualityLabel);
+    qualityControls.appendChild(qualitySelect);
     
     // Event handlers
     rotateLeft.addEventListener('click', (e) => {
@@ -328,21 +376,58 @@ const Map: React.FC<MapProps> = ({ selectedPDF, isPlacingPDF, isMapLocked, onPla
       setPdfZoom(newZoom);
       zoomValue.textContent = Math.round(newZoom * 100) + '%';
       
-      if (pdfLayerRef.current) {
-        pdfLayerRef.current.style.transform = `scale(${newZoom})`;
-        pdfLayerRef.current.style.transformOrigin = 'center center';
-      }
+      // Instead of just scaling, re-render the PDF at the appropriate zoom
+      rerenderPDFWithQuality(newZoom, renderQualityRef.current);
+    });
+    
+    qualitySelect.addEventListener('change', (e) => {
+      e.stopPropagation();
+      const newQuality = parseFloat((e.target as HTMLSelectElement).value);
+      setRenderQuality(newQuality);
+      
+      // Re-render PDF with new quality
+      rerenderPDFWithQuality(pdfZoomRef.current, newQuality);
     });
     
     controls.appendChild(rotationControls);
     controls.appendChild(opacityControls);
     controls.appendChild(zoomControls);
+    controls.appendChild(qualityControls);
     
     pdfContainerRef.current.appendChild(controls);
     controlsContainerRef.current = controls;
     
     return controls;
   }, []);
+  
+  // Function to re-render PDF with specified quality
+  const rerenderPDFWithQuality = useCallback((zoom: number, quality: number) => {
+    if (!pdfLayerRef.current || !selectedPDF || !pdfReactRootRef.current) return;
+    
+    // Adjust the scale factor based on zoom and quality
+    const scaleFactor = zoom * quality;
+    
+    // Re-render the PDF with new scale
+    pdfReactRootRef.current.render(
+      <Document
+        file={selectedPDF.url}
+        onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+        loading={<div className="loading-pdf">Loading PDF...</div>}
+        error={<div className="error-pdf">Error loading PDF</div>}
+        options={PDF_RENDER_OPTIONS}
+      >
+        <Page 
+          pageNumber={1} 
+          width={pdfDimensionsRef.current.width - 20} // Subtract padding
+          scale={scaleFactor}
+          renderTextLayer={false}
+          renderAnnotationLayer={false}
+          className="pdf-page"
+          loading={<div>Loading page...</div>}
+        />
+      </Document>
+    );
+  }, [selectedPDF]);
   
   // Create resize handles
   const createResizeHandles = useCallback(() => {
@@ -498,16 +583,16 @@ const Map: React.FC<MapProps> = ({ selectedPDF, isPlacingPDF, isMapLocked, onPla
     }
   }, []);
 
-  // Apply zoom to the PDF content
+  // Apply zoom to the PDF content - update this method
   const applyZoom = useCallback((zoom: number) => {
     if (pdfLayerRef.current) {
-      pdfLayerRef.current.style.transform = `scale(${zoom})`;
-      pdfLayerRef.current.style.transformOrigin = 'center center';
-      console.log("Applied zoom:", zoom, "to PDF content");
+      // Instead of just CSS transform, re-render with higher quality
+      rerenderPDFWithQuality(zoom, renderQualityRef.current);
+      console.log("Applied zoom:", zoom, "with quality:", renderQualityRef.current);
     }
-  }, []);
+  }, [rerenderPDFWithQuality]);
 
-  // Create a custom PDF overlay
+  // Create a custom PDF overlay - modify to use high quality rendering
   const createPDFOverlay = useCallback(() => {
     if (!mapRef.current || !selectedPDF || unmountingRef.current) return;
     
@@ -573,33 +658,37 @@ const Map: React.FC<MapProps> = ({ selectedPDF, isPlacingPDF, isMapLocked, onPla
       // Apply initial transforms
       applyRotation(pdfRotation);
       applyOpacity(pdfOpacity);
-      applyZoom(pdfZoom);
       
       // Add controls for both placement and non-placement mode
-      // We're removing the condition to allow controls in placement mode too
       createControlsContainer();
       createResizeHandles();
       
-      // Render the PDF using ReactDOM with error handling
+      // Render the PDF using ReactDOM with error handling and high quality
       try {
         // Create a new root
         const root = ReactDOM.createRoot(pdfContent);
         pdfReactRootRef.current = root;
         
-        // Render immediately to avoid issues
+        // Apply initial quality factor
+        const scaleFactor = pdfZoom * renderQuality;
+        
+        // Render immediately with high quality settings
         root.render(
           <Document
             file={selectedPDF.url}
             onLoadSuccess={({ numPages }) => setNumPages(numPages)}
             loading={<div className="loading-pdf">Loading PDF...</div>}
             error={<div className="error-pdf">Error loading PDF</div>}
+            options={PDF_RENDER_OPTIONS}
           >
             <Page 
               pageNumber={1} 
               width={pdfDimensions.width - 20} // Subtract padding
+              scale={scaleFactor}
               renderTextLayer={false}
               renderAnnotationLayer={false}
               className="pdf-page"
+              loading={<div>Loading page...</div>}
             />
           </Document>
         );
@@ -613,8 +702,13 @@ const Map: React.FC<MapProps> = ({ selectedPDF, isPlacingPDF, isMapLocked, onPla
         handleMouseDown(e as unknown as MouseEvent);
       };
     });
-  }, [selectedPDF, pdfDimensions, pdfRotation, pdfOpacity, pdfZoom, isPlacingPDF, createControlsContainer, createResizeHandles, handleMouseDown, cleanupOverlay, applyRotation, applyOpacity, applyZoom]);
-
+  }, [
+    selectedPDF, pdfDimensions, pdfRotation, pdfOpacity, pdfZoom, 
+    isPlacingPDF, createControlsContainer, createResizeHandles, 
+    handleMouseDown, cleanupOverlay, applyRotation, applyOpacity, 
+    applyZoom, renderQuality
+  ]);
+  
   // Add and remove event listeners
   useEffect(() => {
     document.addEventListener('mousemove', handleMouseMove);
@@ -742,7 +836,6 @@ const Map: React.FC<MapProps> = ({ selectedPDF, isPlacingPDF, isMapLocked, onPla
               className="w-full"
             />
           </div>
-          {/* New zoom control */}
           <div className="mb-2">
             <label className="text-sm block mb-1">Zoom: {Math.round(pdfZoom * 100)}%</label>
             <input
@@ -758,6 +851,23 @@ const Map: React.FC<MapProps> = ({ selectedPDF, isPlacingPDF, isMapLocked, onPla
               }}
               className="w-full"
             />
+          </div>
+          <div className="mb-2">
+            <label className="text-sm block mb-1">Quality:</label>
+            <select 
+              value={renderQuality}
+              onChange={(e) => {
+                const newQuality = parseFloat(e.target.value);
+                setRenderQuality(newQuality);
+                rerenderPDFWithQuality(pdfZoom, newQuality);
+              }}
+              className="w-full p-1 border rounded"
+            >
+              <option value="1">Standard</option>
+              <option value="2">High</option>
+              <option value="3">Very High</option>
+              <option value="4">Ultra</option>
+            </select>
           </div>
           <button 
             className="px-4 py-2 bg-blue-500 text-white rounded"
