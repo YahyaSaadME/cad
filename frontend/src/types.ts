@@ -13,4 +13,6 @@ export interface PDFOverlayData {
   bounds: LatLngBounds;
   opacity: number;
   rotation: number;
+  width: number;
+  height: number;
 }

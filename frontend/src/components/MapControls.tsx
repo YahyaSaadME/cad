@@ -16,7 +16,7 @@ export default function MapControls({ onPDFSelect }: MapControlsProps) {
         const fileUrl = URL.createObjectURL(file);
         const newPDF: PDFFile = {
           id: `pdf-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-          file,
+          name: file.name,
           url: fileUrl
         };
         
@@ -61,7 +61,7 @@ export default function MapControls({ onPDFSelect }: MapControlsProps) {
                 key={pdf.id} 
                 className="bg-white p-2 rounded border flex justify-between items-center"
               >
-                <span className="truncate text-sm">{pdf.file.name}</span>
+                <span className="truncate text-sm">{pdf.name}</span>
                 <button 
                   className="bg-blue-500 text-white px-2 py-1 rounded text-sm"
                   onClick={() => onPDFSelect(pdf)}
@@ -79,8 +79,8 @@ export default function MapControls({ onPDFSelect }: MapControlsProps) {
         <ol className="list-decimal list-inside text-sm space-y-1">
           <li>Upload a PDF survey diagram</li>
           <li>Click "Place" on a PDF</li>
-          <li>Click on the map to position it</li>
-          <li>Drag to reposition, use controls to adjust</li>
+          <li>Drag to position it on the map</li>
+          <li>Click "Place PDF" when satisfied</li>
         </ol>
       </div>
     </div>
